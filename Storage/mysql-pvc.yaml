@@ -1,0 +1,82 @@
+# apiVersion: v1
+# kind: PersistentVolume
+# metadata:
+#   name: mysql-pv
+#   namespace: test
+#   labels:
+#     type: local
+# spec:
+#   storageClassName: manual
+#   capacity:
+#     storage: 5Gi
+#   accessModes:
+#     - ReadWriteOnce
+#   hostPath:
+#     path: "/var/lib"
+# ---
+# # MySQL PVC
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: mysql-pvc
+#   namespace: test
+# spec:
+#   volumeName: mysql-pv
+#   storageClassName: manual
+#   accessModes:
+#     - ReadWriteOnce
+#   resources:
+#     requests:
+#       storage: 5Gi
+---
+# MySQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-deployment
+  namespace: test
+spec:
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql-container
+        image: mysql
+        ports: 
+          - containerPort: 80
+            name: "postgres"
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: pass
+        volumeMounts:
+        - name: mysql-storage
+          mountPath: /var/lib/mysql
+        resources:
+             limits:
+               memory: 10Gi
+               cpu: "3"
+      volumes:
+      - name: mysql-storage
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+  namespace: test
+spec:
+  selector:
+    app: mysql
+  ports:
+    - name: postgres
+      protocol: TCP
+      port: 80
+      targetPort: 80
+      nodePort: 30100
+  type: NodePort
