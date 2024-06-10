@@ -1,0 +1,83 @@
+# WordPress PVC
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: wordpress-pv
+  labels:
+    type: local
+    namespace: test
+spec:
+  claimRef:
+    namespace: test
+    name: wordpress-pvc
+  storageClassName: manual
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /var/lib
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wordpress-pvc
+  namespace: test
+spec:
+  volumeName: wordpress-pv
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+---
+# WordPress Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wordpress-deploy
+  namespace: test
+spec:
+  selector:
+    matchLabels:
+      app: wordpress
+  template:
+    metadata:
+      labels:
+        app: wordpress
+    spec:
+      containers:
+      - name: wordpress-container
+        image: wordpress:latest
+        ports:
+        - containerPort: 80
+          name: http
+        env:
+        - name: POSTGRES_USER
+          value: ${{secret.POSTGRES_USER}}
+        - name: POSTGRES_PASSWORD
+          value: ${{secret.POSTGRES_PASSWORD}}
+        volumeMounts:
+        - name: wordpress-storage
+          mountPath: /var/www/html
+          mountPath: /var/lib
+      volumes:
+      - name: wordpress-storage
+        persistentVolumeClaim:
+          claimName: wordpress-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wordpress-service
+  namespace: test
+spec:
+  selector:
+    app: wordpress
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+      nodePort: 30080
+  type: NodePort
